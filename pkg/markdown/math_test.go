@@ -47,31 +47,19 @@ func TestMarkdownMathProducesOMML(t *testing.T) {
 
 func TestMarkdownSingleLineDisplayMathDoesNotCaptureFollowingSections(t *testing.T) {
 	input := strings.Join([]string{
-		"# 数学公式示例文档",
+		"# 数学公式示例",
 		"",
-		"## 第一部分：基本公式",
+		"## 欧拉公式",
 		"",
-		"### 行间公式",
+		"$$e^{i\\pi} + 1 = 0$$",
 		"",
-		"求和公式：",
+		"欧拉公式是数学中最优美的公式之一，它将五个最重要的数学常数（e、i、π、1、0）联系在一起。",
 		"",
-		"$$\\int_a^b f(x)dx$$",
+		"## 二次方程求根公式",
 		"",
-		"---",
+		"$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$",
 		"",
-		"## 第二部分：极限公式",
-		"",
-		"### 极限表达",
-		"",
-		"$$\\lim_{x\\to\\infty} \\frac{1}{x} = 0$$",
-		"",
-		"---",
-		"",
-		"## 第三部分：矩阵示例",
-		"",
-		"### 矩阵公式",
-		"",
-		"$$\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}$$",
+		"这是求解一元二次方程 $ax^2 + bx + c = 0$ 的标准公式。",
 	}, "\n")
 
 	converter := markdown.NewConverter(markdown.DefaultOptions())
@@ -86,20 +74,17 @@ func TestMarkdownSingleLineDisplayMathDoesNotCaptureFollowingSections(t *testing
 	}
 
 	xml := readZipPart(t, data, "word/document.xml")
-	if got := strings.Count(xml, "<m:oMathPara>"); got != 3 {
-		t.Fatalf("expected 3 block math paragraphs, got %d:\n%s", got, xml)
+	if got := strings.Count(xml, "<m:oMathPara>"); got != 2 {
+		t.Fatalf("expected 2 block math paragraphs, got %d:\n%s", got, xml)
 	}
-	if !strings.Contains(xml, "第二部分：极限公式") {
-		t.Fatalf("expected later heading to stay outside math block:\n%s", xml)
+	if !strings.Contains(xml, "欧拉公式是数学中最优美的公式之一") {
+		t.Fatalf("expected following Chinese paragraph to stay outside math block:\n%s", xml)
 	}
-	if strings.Contains(xml, "ç¬¬") {
-		t.Fatalf("expected no garbled UTF-8 sequences in document.xml:\n%s", xml)
+	if !strings.Contains(xml, "二次方程求根公式") {
+		t.Fatalf("expected later heading to remain in document.xml:\n%s", xml)
 	}
-	if !strings.Contains(xml, "<m:m>") {
-		t.Fatalf("expected matrix OMML in document.xml:\n%s", xml)
-	}
-	if strings.Contains(xml, `\begin`) {
-		t.Fatalf("matrix fell back to raw LaTeX text in document.xml:\n%s", xml)
+	if strings.Contains(xml, "æ¬§") || strings.Contains(xml, "äºæ¬¡") {
+		t.Fatalf("expected no mojibake in document.xml:\n%s", xml)
 	}
 
 	opened, err := document.OpenFromMemory(io.NopCloser(bytes.NewReader(data)))
@@ -111,12 +96,35 @@ func TestMarkdownSingleLineDisplayMathDoesNotCaptureFollowingSections(t *testing
 	if err != nil {
 		t.Fatalf("ExportToString failed: %v", err)
 	}
-
-	if !strings.Contains(output, "## **第二部分：极限公式**") {
-		t.Fatalf("expected second section heading in exported markdown, got:\n%s", output)
+	if !strings.Contains(output, "## **二次方程求根公式**") {
+		t.Fatalf("expected second heading in exported markdown, got:\n%s", output)
 	}
-	if !strings.Contains(output, `\begin{bmatrix}`) {
-		t.Fatalf("expected matrix to survive markdown export, got:\n%s", output)
+}
+
+func TestMarkdownSingleLineDisplayMathInsideCodeFenceIsPreserved(t *testing.T) {
+	input := strings.Join([]string{
+		"```md",
+		"$$e^{i\\pi} + 1 = 0$$",
+		"```",
+	}, "\n")
+
+	converter := markdown.NewConverter(markdown.DefaultOptions())
+	doc, err := converter.ConvertString(input, nil)
+	if err != nil {
+		t.Fatalf("ConvertString failed: %v", err)
+	}
+
+	data, err := doc.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes failed: %v", err)
+	}
+
+	xml := readZipPart(t, data, "word/document.xml")
+	if strings.Contains(xml, "<m:oMathPara>") {
+		t.Fatalf("expected code fence content to stay as code text, got math paragraph:\n%s", xml)
+	}
+	if !strings.Contains(xml, "$$e^{i\\pi} + 1 = 0$$") {
+		t.Fatalf("expected literal code fence text in document.xml, got:\n%s", xml)
 	}
 }
 

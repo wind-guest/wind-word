@@ -27,10 +27,6 @@ type MathSubSup = omml.MathSubSup
 type MathDelim = omml.MathDelim
 type MathDelimPr = omml.MathDelimPr
 type MathDelimChar = omml.MathDelimChar
-type MathMatrix = omml.MathMatrix
-type MathMatrixPr = omml.MathMatrixPr
-type MathMatrixRow = omml.MathMatrixRow
-type MathCount = omml.MathCount
 
 func LaTeXToOMML(latex string) *OfficeMath {
 	return omml.LaTeXToOMML(latex)

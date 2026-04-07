@@ -217,8 +217,6 @@ func parseMathElement(decoder *xml.Decoder, start xml.StartElement) (interface{}
 		return parseMathRun(decoder, start)
 	case "f":
 		return parseMathFrac(decoder, start)
-	case "m":
-		return parseMathMatrix(decoder, start)
 	case "sSup":
 		return parseMathSup(decoder, start)
 	case "sSub":
@@ -380,113 +378,6 @@ func parseMathFracPr(decoder *xml.Decoder, start xml.StartElement) (*MathFracPr,
 		case xml.EndElement:
 			if t.Name.Local == start.Name.Local {
 				return pr, nil
-			}
-		}
-	}
-}
-
-func parseMathMatrix(decoder *xml.Decoder, start xml.StartElement) (*MathMatrix, error) {
-	matrix := &MathMatrix{
-		XMLName: start.Name,
-		Rows:    make([]*MathMatrixRow, 0),
-	}
-
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			return nil, err
-		}
-
-		switch t := token.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "mPr":
-				matrixPr, err := parseMathMatrixPr(decoder, t)
-				if err != nil {
-					return nil, err
-				}
-				matrix.MatrixPr = matrixPr
-			case "mr":
-				row, err := parseMathMatrixRow(decoder, t)
-				if err != nil {
-					return nil, err
-				}
-				matrix.Rows = append(matrix.Rows, row)
-			default:
-				if err := skipMathElement(decoder, t.Name.Local); err != nil {
-					return nil, err
-				}
-			}
-		case xml.EndElement:
-			if t.Name.Local == start.Name.Local {
-				return matrix, nil
-			}
-		}
-	}
-}
-
-func parseMathMatrixPr(decoder *xml.Decoder, start xml.StartElement) (*MathMatrixPr, error) {
-	pr := &MathMatrixPr{XMLName: start.Name}
-
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			return nil, err
-		}
-
-		switch t := token.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "count":
-				pr.Count = &MathCount{
-					XMLName: t.Name,
-					Val:     getMathAttr(t.Attr, "val"),
-				}
-				if err := skipMathElement(decoder, t.Name.Local); err != nil {
-					return nil, err
-				}
-			default:
-				if err := skipMathElement(decoder, t.Name.Local); err != nil {
-					return nil, err
-				}
-			}
-		case xml.EndElement:
-			if t.Name.Local == start.Name.Local {
-				return pr, nil
-			}
-		}
-	}
-}
-
-func parseMathMatrixRow(decoder *xml.Decoder, start xml.StartElement) (*MathMatrixRow, error) {
-	row := &MathMatrixRow{
-		XMLName: start.Name,
-		Cells:   make([]*MathE, 0),
-	}
-
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			return nil, err
-		}
-
-		switch t := token.(type) {
-		case xml.StartElement:
-			switch t.Name.Local {
-			case "e":
-				content, err := parseMathContent(decoder, t.Name.Local)
-				if err != nil {
-					return nil, err
-				}
-				row.Cells = append(row.Cells, &MathE{XMLName: t.Name, Content: content})
-			default:
-				if err := skipMathElement(decoder, t.Name.Local); err != nil {
-					return nil, err
-				}
-			}
-		case xml.EndElement:
-			if t.Name.Local == start.Name.Local {
-				return row, nil
 			}
 		}
 	}
@@ -736,14 +627,16 @@ func parseMathDelimPr(decoder *xml.Decoder, start xml.StartElement) (*MathDelimP
 			switch t.Name.Local {
 			case "begChr":
 				pr.BegChr = &MathDelimChar{
-					Val: getMathAttr(t.Attr, "val"),
+					XMLName: t.Name,
+					Val:     getMathAttr(t.Attr, "val"),
 				}
 				if err := skipMathElement(decoder, t.Name.Local); err != nil {
 					return nil, err
 				}
 			case "endChr":
 				pr.EndChr = &MathDelimChar{
-					Val: getMathAttr(t.Attr, "val"),
+					XMLName: t.Name,
+					Val:     getMathAttr(t.Attr, "val"),
 				}
 				if err := skipMathElement(decoder, t.Name.Local); err != nil {
 					return nil, err
@@ -782,8 +675,6 @@ func renderMathElement(element interface{}) string {
 			return ""
 		}
 		return `\frac{` + renderMathContent(v.Num.Content) + `}{` + renderMathContent(v.Den.Content) + `}`
-	case *MathMatrix:
-		return renderMathMatrix(v)
 	case *MathSup:
 		if v == nil || v.E == nil || v.Sup == nil {
 			return ""
@@ -810,9 +701,6 @@ func renderMathElement(element interface{}) string {
 	case *MathDelim:
 		if v == nil || v.E == nil {
 			return ""
-		}
-		if matrixEnv, ok := renderDelimitedMatrix(v); ok {
-			return matrixEnv
 		}
 		begin := "("
 		end := ")"
@@ -844,72 +732,6 @@ func renderMathRun(run *MathRun) string {
 	}
 
 	return result.String()
-}
-
-func renderMathMatrix(matrix *MathMatrix) string {
-	if matrix == nil {
-		return ""
-	}
-
-	rows := make([]string, 0, len(matrix.Rows))
-	for _, row := range matrix.Rows {
-		if row == nil {
-			continue
-		}
-
-		cells := make([]string, 0, len(row.Cells))
-		for _, cell := range row.Cells {
-			if cell == nil {
-				cells = append(cells, "")
-				continue
-			}
-			cells = append(cells, renderMathContent(cell.Content))
-		}
-		rows = append(rows, strings.Join(cells, " & "))
-	}
-
-	return `\begin{matrix}` + strings.Join(rows, ` \\ `) + `\end{matrix}`
-}
-
-func renderDelimitedMatrix(delim *MathDelim) (string, bool) {
-	if delim == nil || delim.E == nil || len(delim.E.Content) != 1 {
-		return "", false
-	}
-
-	matrix, ok := delim.E.Content[0].(*MathMatrix)
-	if !ok {
-		return "", false
-	}
-
-	env := matrixEnvironmentFromDelim(delim)
-	if env == "" {
-		return "", false
-	}
-
-	matrixBody := strings.TrimPrefix(renderMathMatrix(matrix), `\begin{matrix}`)
-	matrixBody = strings.TrimSuffix(matrixBody, `\end{matrix}`)
-	return `\begin{` + env + `}` + matrixBody + `\end{` + env + `}`, true
-}
-
-func matrixEnvironmentFromDelim(delim *MathDelim) string {
-	if delim == nil || delim.DPr == nil || delim.DPr.BegChr == nil || delim.DPr.EndChr == nil {
-		return ""
-	}
-
-	begin := delim.DPr.BegChr.Val
-	end := delim.DPr.EndChr.Val
-	switch {
-	case begin == "[" && end == "]":
-		return "bmatrix"
-	case begin == "(" && end == ")":
-		return "pmatrix"
-	case begin == "|" && end == "|":
-		return "vmatrix"
-	case begin == "{" && end == "}":
-		return "Bmatrix"
-	default:
-		return ""
-	}
 }
 
 func getMathAttr(attrs []xml.Attr, name string) string {

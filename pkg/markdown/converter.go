@@ -151,47 +151,83 @@ func (c *Converter) ConvertFile(mdPath, docxPath string, options *ConvertOptions
 }
 
 func normalizeMarkdownMathBlocks(content []byte) []byte {
-	lines := strings.Split(string(content), "\n")
+	if len(strings.TrimSpace(string(content))) == 0 {
+		return content
+	}
+
+	newline := "\n"
+	if strings.Contains(string(content), "\r\n") {
+		newline = "\r\n"
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	normalized := make([]string, 0, len(lines))
 	changed := false
-	var normalized strings.Builder
+	inFence := false
+	fenceMarker := ""
 
-	for i, line := range lines {
-		rawLine := strings.TrimSuffix(line, "\r")
-		trimmed := strings.TrimSpace(rawLine)
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
 
-		if replacement, ok := normalizeSingleLineMathBlock(rawLine, trimmed); ok {
-			normalized.WriteString(replacement)
+		if marker, ok := markdownFenceMarker(trimmed); ok {
+			if !inFence {
+				inFence = true
+				fenceMarker = marker
+			} else if marker == fenceMarker {
+				inFence = false
+				fenceMarker = ""
+			}
+			normalized = append(normalized, line)
+			continue
+		}
+
+		if inFence {
+			normalized = append(normalized, line)
+			continue
+		}
+
+		if replacement, ok := normalizeSingleLineMathBlock(line, trimmed); ok {
+			normalized = append(normalized, replacement...)
 			changed = true
-		} else {
-			normalized.WriteString(rawLine)
+			continue
 		}
 
-		if i < len(lines)-1 {
-			normalized.WriteByte('\n')
-		}
+		normalized = append(normalized, line)
 	}
 
 	if !changed {
 		return content
 	}
 
-	return []byte(normalized.String())
+	return []byte(strings.Join(normalized, newline))
 }
 
-func normalizeSingleLineMathBlock(rawLine, trimmed string) (string, bool) {
+func normalizeSingleLineMathBlock(rawLine, trimmed string) ([]string, bool) {
 	if !strings.HasPrefix(trimmed, "$$") || !strings.HasSuffix(trimmed, "$$") || len(trimmed) <= 4 {
-		return "", false
+		return nil, false
 	}
 
 	inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
 	if inner == "" {
-		return "", false
+		return nil, false
 	}
 
 	indentLen := len(rawLine) - len(strings.TrimLeft(rawLine, " \t"))
 	indent := rawLine[:indentLen]
 
-	return indent + "$$\n" + indent + inner + "\n" + indent + "$$", true
+	return []string{indent + "$$", indent + inner, indent + "$$"}, true
+}
+
+func markdownFenceMarker(trimmed string) (string, bool) {
+	switch {
+	case strings.HasPrefix(trimmed, "```"):
+		return "```", true
+	case strings.HasPrefix(trimmed, "~~~"):
+		return "~~~", true
+	default:
+		return "", false
+	}
 }
 
 // BatchConvert 批量转换文件
