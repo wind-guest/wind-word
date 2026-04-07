@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +81,7 @@ func (c *Converter) ConvertString(content string, opts *ConvertOptions) (*docume
 }
 
 // ConvertBytes 转换字节数据为Word文档
-func (c *Converter) ConvertBytes(content []byte, opts *ConvertOptions) (*document.Document, error) {
+func (c *Converter) ConvertBytes(content []byte, opts *ConvertOptions) (doc *document.Document, err error) {
 	resolved := c.opts.clone()
 	if opts != nil {
 		resolved = opts.clone()
@@ -90,8 +91,15 @@ func (c *Converter) ConvertBytes(content []byte, opts *ConvertOptions) (*documen
 		content = normalizeMarkdownMathBlocks(content)
 	}
 
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			doc = nil
+			err = NewConversionError("MarkdownParse", "failed to parse markdown", 0, 0, fmt.Errorf("markdown parser panic: %v", recovered))
+		}
+	}()
+
 	// 创建新的Word文档
-	doc := document.New()
+	doc = document.New()
 
 	// 应用页面设置
 	if resolved.PageSettings != nil {
@@ -110,7 +118,7 @@ func (c *Converter) ConvertBytes(content []byte, opts *ConvertOptions) (*documen
 		source: content,
 	}
 
-	err := renderer.Render(astDoc)
+	err = renderer.Render(astDoc)
 	if err != nil {
 		return nil, err
 	}
@@ -204,19 +212,62 @@ func normalizeMarkdownMathBlocks(content []byte) []byte {
 }
 
 func normalizeSingleLineMathBlock(rawLine, trimmed string) ([]string, bool) {
-	if !strings.HasPrefix(trimmed, "$$") || !strings.HasSuffix(trimmed, "$$") || len(trimmed) <= 4 {
-		return nil, false
-	}
-
-	inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
-	if inner == "" {
+	if !strings.Contains(rawLine, "$$") {
 		return nil, false
 	}
 
 	indentLen := len(rawLine) - len(strings.TrimLeft(rawLine, " \t"))
 	indent := rawLine[:indentLen]
+	remaining := rawLine
+	normalized := make([]string, 0, 4)
+	changed := false
 
-	return []string{indent + "$$", indent + inner, indent + "$$"}, true
+	for {
+		start := strings.Index(remaining, "$$")
+		if start < 0 {
+			tail := strings.TrimSpace(remaining)
+			if tail != "" {
+				normalized = append(normalized, tail)
+			}
+			break
+		}
+
+		endRel := strings.Index(remaining[start+2:], "$$")
+		if endRel < 0 {
+			if !changed {
+				return nil, false
+			}
+			tail := strings.TrimSpace(remaining)
+			if tail != "" {
+				normalized = append(normalized, tail)
+			}
+			break
+		}
+
+		end := start + 2 + endRel
+		prefix := strings.TrimRight(remaining[:start], " \t")
+		if strings.TrimSpace(prefix) != "" {
+			normalized = append(normalized, prefix)
+		}
+
+		inner := strings.TrimSpace(remaining[start+2 : end])
+		if inner == "" {
+			if !changed {
+				return nil, false
+			}
+			remaining = strings.TrimLeft(remaining[end+2:], " \t")
+			continue
+		}
+
+		normalized = append(normalized, indent+"$$", indent+inner, indent+"$$")
+		changed = true
+		remaining = strings.TrimLeft(remaining[end+2:], " \t")
+	}
+
+	if !changed {
+		return nil, false
+	}
+	return normalized, true
 }
 
 func markdownFenceMarker(trimmed string) (string, bool) {

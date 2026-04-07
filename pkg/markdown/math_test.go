@@ -201,6 +201,33 @@ func TestMarkdownMatrixUsesWordCompatibleMatrixColumns(t *testing.T) {
 	}
 }
 
+func TestMarkdownDisplayMathEmbeddedInBulletTextDoesNotPanic(t *testing.T) {
+	input := strings.Join([]string{
+		"# 高阶数学与物理中的经典公式",
+		"",
+		"- **薛定谔方程（含时）**： $$ i\\hbar \\frac{\\partial}{\\partial t}\\Psi(\\mathbf{r},t)=\\hat{H}\\Psi(\\mathbf{r},t) $$",
+	}, "\n")
+
+	converter := markdown.NewConverter(markdown.DefaultOptions())
+	doc, err := converter.ConvertString(input, nil)
+	if err != nil {
+		t.Fatalf("ConvertString failed: %v", err)
+	}
+
+	data, err := doc.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes failed: %v", err)
+	}
+
+	xml := readZipPart(t, data, "word/document.xml")
+	if !strings.Contains(xml, "薛定谔方程（含时）") {
+		t.Fatalf("expected bullet text to remain in document.xml, got:\n%s", xml)
+	}
+	if !strings.Contains(xml, "<m:oMathPara>") {
+		t.Fatalf("expected display math block in document.xml, got:\n%s", xml)
+	}
+}
+
 func readZipPart(t *testing.T, data []byte, part string) string {
 	t.Helper()
 
