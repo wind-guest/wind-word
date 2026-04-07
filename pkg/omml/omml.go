@@ -16,6 +16,7 @@ var (
 	mathCmdSubSupPattern = regexp.MustCompile(`^\\([a-zA-Z]+)_(?:\{([^{}]*)}|([a-zA-Z0-9]))\^(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
 	mathCmdSupPattern    = regexp.MustCompile(`^\\([a-zA-Z]+)\^(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
 	mathCmdSubPattern    = regexp.MustCompile(`^\\([a-zA-Z]+)_(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
+	mathCmdArgPattern    = regexp.MustCompile(`^\\([a-zA-Z]+)\s*\{([^{}]*(?:\{[^{}]*}[^{}]*)*)}`)
 	mathCmdPattern       = regexp.MustCompile(`^\\([a-zA-Z]+)`)
 	mathTextPattern      = regexp.MustCompile(`^[a-zA-Z0-9.,;:!?]+`)
 )
@@ -439,6 +440,15 @@ func parseLatex(latex string) []interface{} {
 			continue
 		}
 
+		// 检查带参数的 LaTeX 命令，例如 \mathbf{E}、\hat{H}
+		if match := mathCmdArgPattern.FindStringSubmatch(remaining); match != nil {
+			if converted, ok := convertLaTeXCommandWithArg(match[1], match[2]); ok {
+				result = append(result, converted...)
+				i += len(match[0])
+				continue
+			}
+		}
+
 		// 检查LaTeX命令
 		if match := mathCmdPattern.FindStringSubmatch(remaining); match != nil {
 			cmd := match[1]
@@ -493,34 +503,84 @@ func createMathRun(text string) *MathRun {
 	}
 }
 
+func convertLaTeXCommandWithArg(cmd, arg string) ([]interface{}, bool) {
+	switch cmd {
+	case "mathbf", "mathrm", "mathit", "mathsf", "boldsymbol", "operatorname":
+		return parseLatex(arg), true
+	case "hat":
+		return accentCommandContent(arg, "\u0302"), true
+	case "dot":
+		return accentCommandContent(arg, "\u0307"), true
+	case "bar":
+		return accentCommandContent(arg, "\u0304"), true
+	default:
+		return nil, false
+	}
+}
+
+func accentCommandContent(arg, accent string) []interface{} {
+	parsed := parseLatex(arg)
+	if text, ok := flattenMathRunText(parsed); ok && text != "" {
+		return []interface{}{createMathRun(applyCombiningAccent(text, accent))}
+	}
+
+	return parseLatex(arg)
+}
+
+func flattenMathRunText(elements []interface{}) (string, bool) {
+	if len(elements) == 0 {
+		return "", false
+	}
+
+	var builder strings.Builder
+	for _, element := range elements {
+		run, ok := element.(*MathRun)
+		if !ok || run == nil || run.Text == nil {
+			return "", false
+		}
+		builder.WriteString(run.Text.Content)
+	}
+	return builder.String(), true
+}
+
+func applyCombiningAccent(text, accent string) string {
+	runes := []rune(text)
+	if len(runes) == 0 {
+		return text
+	}
+
+	return string(runes) + accent
+}
+
 // convertLaTeXCommand 将LaTeX命令转换为对应的Unicode字符
 func convertLaTeXCommand(cmd string) string {
 	// 常见LaTeX命令到Unicode的映射
 	commands := map[string]string{
 		// 希腊字母（小写）
-		"alpha":   "α",
-		"beta":    "β",
-		"gamma":   "γ",
-		"delta":   "δ",
-		"epsilon": "ε",
-		"zeta":    "ζ",
-		"eta":     "η",
-		"theta":   "θ",
-		"iota":    "ι",
-		"kappa":   "κ",
-		"lambda":  "λ",
-		"mu":      "μ",
-		"nu":      "ν",
-		"xi":      "ξ",
-		"pi":      "π",
-		"rho":     "ρ",
-		"sigma":   "σ",
-		"tau":     "τ",
-		"upsilon": "υ",
-		"phi":     "φ",
-		"chi":     "χ",
-		"psi":     "ψ",
-		"omega":   "ω",
+		"alpha":      "α",
+		"beta":       "β",
+		"gamma":      "γ",
+		"delta":      "δ",
+		"epsilon":    "ε",
+		"varepsilon": "ϵ",
+		"zeta":       "ζ",
+		"eta":        "η",
+		"theta":      "θ",
+		"iota":       "ι",
+		"kappa":      "κ",
+		"lambda":     "λ",
+		"mu":         "μ",
+		"nu":         "ν",
+		"xi":         "ξ",
+		"pi":         "π",
+		"rho":        "ρ",
+		"sigma":      "σ",
+		"tau":        "τ",
+		"upsilon":    "υ",
+		"phi":        "φ",
+		"chi":        "χ",
+		"psi":        "ψ",
+		"omega":      "ω",
 
 		// 希腊字母（大写）
 		"Alpha":   "Α",
@@ -600,6 +660,7 @@ func convertLaTeXCommand(cmd string) string {
 		"infty":      "∞",
 		"partial":    "∂",
 		"nabla":      "∇",
+		"hbar":       "ℏ",
 		"forall":     "∀",
 		"exists":     "∃",
 		"nexists":    "∄",

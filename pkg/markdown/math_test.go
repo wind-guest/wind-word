@@ -128,6 +128,39 @@ func TestMarkdownSingleLineDisplayMathInsideCodeFenceIsPreserved(t *testing.T) {
 	}
 }
 
+func TestMarkdownAdvancedLatexCommandsDoNotLeakRawCommandsIntoOMML(t *testing.T) {
+	input := strings.Join([]string{
+		"# Advanced",
+		"",
+		"$$i\\hbar \\frac{\\partial}{\\partial t}\\Psi(\\mathbf{r},t)=\\hat{H}\\Psi(\\mathbf{r},t)$$",
+		"",
+		"$$\\nabla \\cdot \\mathbf{E}=\\frac{\\rho}{\\varepsilon_0}, \\quad \\frac{d}{dt}\\left(\\frac{\\partial L}{\\partial \\dot{q}}\\right)=0$$",
+	}, "\n")
+
+	converter := markdown.NewConverter(markdown.DefaultOptions())
+	doc, err := converter.ConvertString(input, nil)
+	if err != nil {
+		t.Fatalf("ConvertString failed: %v", err)
+	}
+
+	data, err := doc.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes failed: %v", err)
+	}
+
+	xml := readZipPart(t, data, "word/document.xml")
+	for _, raw := range []string{`\mathbf`, `\hat`, `\hbar`, `\varepsilon`, `\dot`} {
+		if strings.Contains(xml, raw) {
+			t.Fatalf("expected advanced command %s to be converted in document.xml, got:\n%s", raw, xml)
+		}
+	}
+	for _, converted := range []string{"ℏ", "ϵ", "∇"} {
+		if !strings.Contains(xml, converted) {
+			t.Fatalf("expected converted symbol %s in document.xml, got:\n%s", converted, xml)
+		}
+	}
+}
+
 func readZipPart(t *testing.T, data []byte, part string) string {
 	t.Helper()
 
