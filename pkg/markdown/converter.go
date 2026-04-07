@@ -86,6 +86,10 @@ func (c *Converter) ConvertBytes(content []byte, opts *ConvertOptions) (*documen
 		resolved = opts.clone()
 	}
 
+	if resolved.EnableMath {
+		content = normalizeMarkdownMathBlocks(content)
+	}
+
 	// 创建新的Word文档
 	doc := document.New()
 
@@ -144,6 +148,50 @@ func (c *Converter) ConvertFile(mdPath, docxPath string, options *ConvertOptions
 	}
 
 	return nil
+}
+
+func normalizeMarkdownMathBlocks(content []byte) []byte {
+	lines := strings.Split(string(content), "\n")
+	changed := false
+	var normalized strings.Builder
+
+	for i, line := range lines {
+		rawLine := strings.TrimSuffix(line, "\r")
+		trimmed := strings.TrimSpace(rawLine)
+
+		if replacement, ok := normalizeSingleLineMathBlock(rawLine, trimmed); ok {
+			normalized.WriteString(replacement)
+			changed = true
+		} else {
+			normalized.WriteString(rawLine)
+		}
+
+		if i < len(lines)-1 {
+			normalized.WriteByte('\n')
+		}
+	}
+
+	if !changed {
+		return content
+	}
+
+	return []byte(normalized.String())
+}
+
+func normalizeSingleLineMathBlock(rawLine, trimmed string) (string, bool) {
+	if !strings.HasPrefix(trimmed, "$$") || !strings.HasSuffix(trimmed, "$$") || len(trimmed) <= 4 {
+		return "", false
+	}
+
+	inner := strings.TrimSpace(trimmed[2 : len(trimmed)-2])
+	if inner == "" {
+		return "", false
+	}
+
+	indentLen := len(rawLine) - len(strings.TrimLeft(rawLine, " \t"))
+	indent := rawLine[:indentLen]
+
+	return indent + "$$\n" + indent + inner + "\n" + indent + "$$", true
 }
 
 // BatchConvert 批量转换文件
