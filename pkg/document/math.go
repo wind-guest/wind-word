@@ -4,7 +4,7 @@ package document
 import (
 	"encoding/xml"
 
-	"github.com/FengKeWG/wind-word/pkg/omml"
+	"github.com/wind-guest/wind-word/pkg/omml"
 )
 
 type OfficeMath = omml.OfficeMath

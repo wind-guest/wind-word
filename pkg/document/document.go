@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/FengKeWG/wind-word/pkg/omml"
-	"github.com/FengKeWG/wind-word/pkg/style"
+	"github.com/wind-guest/wind-word/pkg/omml"
+	"github.com/wind-guest/wind-word/pkg/style"
 )
 
 // Document 表示一个Word文档

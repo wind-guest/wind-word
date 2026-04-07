@@ -1,7 +1,7 @@
 // Package markdown 保留数学公式类型与转换 API 的兼容导出。
 package markdown
 
-import "github.com/FengKeWG/wind-word/pkg/omml"
+import "github.com/wind-guest/wind-word/pkg/omml"
 
 type OfficeMath = omml.OfficeMath
 type OfficeMathPara = omml.OfficeMathPara

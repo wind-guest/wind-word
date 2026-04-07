@@ -12,7 +12,7 @@ import (
 
 	mathjax "github.com/litao91/goldmark-mathjax"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/document"
 )
 
 // MarkdownConverter Markdown转换器接口

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/document"
 )
 
 // WordToMarkdownExporter Word到Markdown导出器接口

@@ -1,21 +1,21 @@
 # wind-word
 
-`wind-word` 是一个用于创建、读取、修改 `.docx` 文件的 Go 库，模块地址为 `github.com/FengKeWG/wind-word`。
+`wind-word` 是一个用于创建、读取、修改 `.docx` 文件的 Go 库，模块地址为 `github.com/wind-guest/wind-word`。
 
 ## 安装
 
 要求：Go `1.22+`
 
 ```bash
-go get github.com/FengKeWG/wind-word
+go get github.com/wind-guest/wind-word
 ```
 
 常用包：
 
 ```go
-import "github.com/FengKeWG/wind-word/pkg/document"
-import "github.com/FengKeWG/wind-word/pkg/markdown"
-import "github.com/FengKeWG/wind-word/pkg/style"
+import "github.com/wind-guest/wind-word/pkg/document"
+import "github.com/wind-guest/wind-word/pkg/markdown"
+import "github.com/wind-guest/wind-word/pkg/style"
 ```
 
 ## 主要能力
@@ -51,7 +51,7 @@ package main
 import (
 	"log"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/document"
 )
 
 func main() {

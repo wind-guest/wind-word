@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/document"
 	"github.com/yuin/goldmark/ast"
 
 	// 添加goldmark扩展的AST节点支持

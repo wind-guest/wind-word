@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/FengKeWG/wind-word/examples/internal/exampleutil"
-	"github.com/FengKeWG/wind-word/pkg/markdown"
+	"github.com/wind-guest/wind-word/examples/internal/exampleutil"
+	"github.com/wind-guest/wind-word/pkg/markdown"
 )
 
 func main() {

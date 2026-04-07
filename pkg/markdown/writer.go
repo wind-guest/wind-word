@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
-	"github.com/FengKeWG/wind-word/pkg/omml"
+	"github.com/wind-guest/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/omml"
 )
 
 var headingLevelPattern = regexp.MustCompile(`\d+`)

@@ -1,7 +1,7 @@
 // Package markdown 提供Markdown到Word文档的转换功能
 package markdown
 
-import "github.com/FengKeWG/wind-word/pkg/document"
+import "github.com/wind-guest/wind-word/pkg/document"
 
 // ConvertOptions 转换选项配置
 type ConvertOptions struct {

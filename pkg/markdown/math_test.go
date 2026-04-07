@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FengKeWG/wind-word/pkg/markdown"
+	"github.com/wind-guest/wind-word/pkg/markdown"
 )
 
 func TestMarkdownMathProducesOMML(t *testing.T) {

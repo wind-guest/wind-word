@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/document"
 )
 
 func TestMathAPIsProduceOMML(t *testing.T) {

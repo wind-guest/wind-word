@@ -1,4 +1,4 @@
-module github.com/FengKeWG/wind-word
+module github.com/wind-guest/wind-word
 
 go 1.22
 

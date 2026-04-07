@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/FengKeWG/wind-word/examples/internal/exampleutil"
-	"github.com/FengKeWG/wind-word/pkg/document"
-	stylepkg "github.com/FengKeWG/wind-word/pkg/style"
+	"github.com/wind-guest/wind-word/examples/internal/exampleutil"
+	"github.com/wind-guest/wind-word/pkg/document"
+	stylepkg "github.com/wind-guest/wind-word/pkg/style"
 )
 
 func main() {

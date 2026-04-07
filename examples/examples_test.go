@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FengKeWG/wind-word/examples/internal/exampleutil"
+	"github.com/wind-guest/wind-word/examples/internal/exampleutil"
 )
 
 func TestExamplesRun(t *testing.T) {

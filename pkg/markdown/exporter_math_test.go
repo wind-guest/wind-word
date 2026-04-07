@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/FengKeWG/wind-word/pkg/document"
-	"github.com/FengKeWG/wind-word/pkg/markdown"
+	"github.com/wind-guest/wind-word/pkg/document"
+	"github.com/wind-guest/wind-word/pkg/markdown"
 )
 
 func TestExporterPreservesMathFromLiveDocument(t *testing.T) {
