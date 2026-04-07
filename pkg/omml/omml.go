@@ -4,12 +4,15 @@ package omml
 import (
 	"encoding/xml"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
 	mathFracPattern      = regexp.MustCompile(`^\\frac\s*\{([^{}]*(?:\{[^{}]*}[^{}]*)*)}\s*\{([^{}]*(?:\{[^{}]*}[^{}]*)*)}`)
 	mathSqrtPattern      = regexp.MustCompile(`^\\sqrt(?:\[([^]]*)])?\s*\{([^{}]*(?:\{[^{}]*}[^{}]*)*)}`)
+	mathMatrixPattern    = regexp.MustCompile(`(?s)^\\begin\s*\{(matrix|bmatrix|pmatrix|vmatrix|Bmatrix)\}\s*(.*?)\s*\\end\s*\{([A-Za-z]+)\}`)
 	mathSupPattern       = regexp.MustCompile(`^([a-zA-Z0-9])\^(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
 	mathSubPattern       = regexp.MustCompile(`^([a-zA-Z0-9])_(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
 	mathSubSupPattern    = regexp.MustCompile(`^([a-zA-Z0-9])_(?:\{([^{}]*)}|([a-zA-Z0-9]))\^(?:\{([^{}]*)}|([a-zA-Z0-9]))`)
@@ -272,8 +275,57 @@ type MathDelimPr struct {
 
 // MathDelimChar 表示分隔符字符
 type MathDelimChar struct {
-	XMLName xml.Name `xml:"m:begChr"`
+	Val string `xml:"m:val,attr"`
+}
+
+// MathMatrix 表示矩阵。
+type MathMatrix struct {
+	XMLName  xml.Name         `xml:"m:m"`
+	MatrixPr *MathMatrixPr    `xml:"m:mPr,omitempty"`
+	Rows     []*MathMatrixRow `xml:"m:mr,omitempty"`
+}
+
+// MathMatrixPr 表示矩阵属性。
+type MathMatrixPr struct {
+	XMLName xml.Name           `xml:"m:mPr"`
+	Columns *MathMatrixColumns `xml:"m:mcs,omitempty"`
+}
+
+// MathMatrixColumns 表示矩阵列定义集合。
+type MathMatrixColumns struct {
+	XMLName xml.Name            `xml:"m:mcs"`
+	Columns []*MathMatrixColumn `xml:"m:mc,omitempty"`
+}
+
+// MathMatrixColumn 表示一组相同属性的矩阵列。
+type MathMatrixColumn struct {
+	XMLName xml.Name            `xml:"m:mc"`
+	Props   *MathMatrixColumnPr `xml:"m:mcPr,omitempty"`
+}
+
+// MathMatrixColumnPr 表示矩阵列属性。
+type MathMatrixColumnPr struct {
+	XMLName xml.Name                       `xml:"m:mcPr"`
+	Count   *MathCount                     `xml:"m:count,omitempty"`
+	Jc      *MathMatrixColumnJustification `xml:"m:mcJc,omitempty"`
+}
+
+// MathMatrixColumnJustification 表示矩阵列对齐方式。
+type MathMatrixColumnJustification struct {
+	XMLName xml.Name `xml:"m:mcJc"`
 	Val     string   `xml:"m:val,attr"`
+}
+
+// MathCount 表示矩阵列数。
+type MathCount struct {
+	XMLName xml.Name `xml:"m:count"`
+	Val     string   `xml:"m:val,attr"`
+}
+
+// MathMatrixRow 表示矩阵行。
+type MathMatrixRow struct {
+	XMLName xml.Name `xml:"m:mr"`
+	Cells   []*MathE `xml:"m:e,omitempty"`
 }
 
 // LaTeXToOMML 将LaTeX公式转换为OMML格式
@@ -378,6 +430,15 @@ func parseLatex(latex string) []interface{} {
 			result = append(result, rad)
 			i += len(match[0])
 			continue
+		}
+
+		// 检查矩阵环境
+		if match := mathMatrixPattern.FindStringSubmatch(remaining); match != nil {
+			if match[1] == match[3] {
+				result = append(result, parseMatrixEnvironment(match[1], match[2]))
+				i += len(match[0])
+				continue
+			}
 		}
 
 		// 检查上标
@@ -488,8 +549,9 @@ func parseLatex(latex string) []interface{} {
 
 		// 处理单个字符
 		if i < len(latex) {
-			result = append(result, createMathRun(string(latex[i])))
-			i++
+			r, size := utf8.DecodeRuneInString(latex[i:])
+			result = append(result, createMathRun(string(r)))
+			i += size
 		}
 	}
 
@@ -550,6 +612,111 @@ func applyCombiningAccent(text, accent string) string {
 	}
 
 	return string(runes) + accent
+}
+
+func parseMatrixEnvironment(env, body string) interface{} {
+	rows := splitLatexTopLevel(body, `\\`)
+	matrixRows := make([]*MathMatrixRow, 0, len(rows))
+	maxCols := 0
+
+	for _, row := range rows {
+		row = strings.TrimSpace(row)
+		if row == "" {
+			continue
+		}
+
+		cells := splitLatexTopLevel(row, "&")
+		matrixCells := make([]*MathE, 0, len(cells))
+		for _, cell := range cells {
+			matrixCells = append(matrixCells, &MathE{Content: parseLatex(strings.TrimSpace(cell))})
+		}
+		if len(matrixCells) > maxCols {
+			maxCols = len(matrixCells)
+		}
+		matrixRows = append(matrixRows, &MathMatrixRow{Cells: matrixCells})
+	}
+
+	matrix := &MathMatrix{
+		Rows: matrixRows,
+	}
+	if maxCols > 0 {
+		matrix.MatrixPr = &MathMatrixPr{
+			Columns: &MathMatrixColumns{
+				Columns: []*MathMatrixColumn{{
+					Props: &MathMatrixColumnPr{
+						Count: &MathCount{Val: strconv.Itoa(maxCols)},
+						Jc:    &MathMatrixColumnJustification{Val: "center"},
+					},
+				}},
+			},
+		}
+	}
+
+	begChr, endChr, wrapped := matrixDelimiters(env)
+	if !wrapped {
+		return matrix
+	}
+
+	return &MathDelim{
+		DPr: &MathDelimPr{
+			BegChr: &MathDelimChar{Val: begChr},
+			EndChr: &MathDelimChar{Val: endChr},
+		},
+		E: &MathE{Content: []interface{}{matrix}},
+	}
+}
+
+func splitLatexTopLevel(input, delimiter string) []string {
+	if input == "" {
+		return nil
+	}
+
+	parts := make([]string, 0)
+	start := 0
+	depth := 0
+	i := 0
+
+	for i < len(input) {
+		switch input[i] {
+		case '{':
+			depth++
+			i++
+			continue
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+			i++
+			continue
+		}
+
+		if depth == 0 && strings.HasPrefix(input[i:], delimiter) {
+			parts = append(parts, input[start:i])
+			i += len(delimiter)
+			start = i
+			continue
+		}
+
+		i++
+	}
+
+	parts = append(parts, input[start:])
+	return parts
+}
+
+func matrixDelimiters(env string) (string, string, bool) {
+	switch env {
+	case "bmatrix":
+		return "[", "]", true
+	case "pmatrix":
+		return "(", ")", true
+	case "vmatrix":
+		return "|", "|", true
+	case "Bmatrix":
+		return "{", "}", true
+	default:
+		return "", "", false
+	}
 }
 
 // convertLaTeXCommand 将LaTeX命令转换为对应的Unicode字符

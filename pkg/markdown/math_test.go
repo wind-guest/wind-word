@@ -161,6 +161,46 @@ func TestMarkdownAdvancedLatexCommandsDoNotLeakRawCommandsIntoOMML(t *testing.T)
 	}
 }
 
+func TestMarkdownMatrixUsesWordCompatibleMatrixColumns(t *testing.T) {
+	input := strings.Join([]string{
+		"# Matrix",
+		"",
+		"$$A = \\begin{bmatrix} a_{11} & a_{12} \\\\ a_{21} & a_{22} \\end{bmatrix}$$",
+	}, "\n")
+
+	converter := markdown.NewConverter(markdown.DefaultOptions())
+	doc, err := converter.ConvertString(input, nil)
+	if err != nil {
+		t.Fatalf("ConvertString failed: %v", err)
+	}
+
+	data, err := doc.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes failed: %v", err)
+	}
+
+	xml := readZipPart(t, data, "word/document.xml")
+	if !strings.Contains(xml, "<m:mcs>") || !strings.Contains(xml, "<m:mc>") || !strings.Contains(xml, "<m:mcPr>") {
+		t.Fatalf("expected Word-compatible matrix column structure, got:\n%s", xml)
+	}
+	if strings.Contains(xml, "<m:mPr><m:count") {
+		t.Fatalf("expected matrix count to be nested under m:mcs/m:mcPr, got:\n%s", xml)
+	}
+
+	opened, err := document.OpenFromMemory(io.NopCloser(bytes.NewReader(data)))
+	if err != nil {
+		t.Fatalf("OpenFromMemory failed: %v", err)
+	}
+
+	output, err := markdown.NewExporter(markdown.DefaultExportOptions()).ExportToString(opened, nil)
+	if err != nil {
+		t.Fatalf("ExportToString failed: %v", err)
+	}
+	if !strings.Contains(output, `\begin{bmatrix}`) {
+		t.Fatalf("expected matrix to round-trip back to markdown, got:\n%s", output)
+	}
+}
+
 func readZipPart(t *testing.T, data []byte, part string) string {
 	t.Helper()
 
