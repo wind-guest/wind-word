@@ -228,6 +228,44 @@ func TestMarkdownDisplayMathEmbeddedInBulletTextDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestMarkdownInlineMathInBulletListProducesOMML(t *testing.T) {
+	input := strings.Join([]string{
+		"# 时序参数",
+		"",
+		"计算公式：",
+		"",
+		"- 若晶振频率 $f_{osc} = 12\\text{MHz}$",
+		"- 则时钟周期 $T_{clk}=\\frac{1}{12}\\mu s$",
+		"- 机器周期 $T_{machine}=12\\times T_{clk}=1\\mu s$",
+	}, "\n")
+
+	converter := markdown.NewConverter(markdown.DefaultOptions())
+	doc, err := converter.ConvertString(input, nil)
+	if err != nil {
+		t.Fatalf("ConvertString failed: %v", err)
+	}
+
+	data, err := doc.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes failed: %v", err)
+	}
+
+	xml := readZipPart(t, data, "word/document.xml")
+	if got := strings.Count(xml, "<m:oMath>"); got < 3 {
+		t.Fatalf("expected inline math in bullet list, got %d math nodes:\n%s", got, xml)
+	}
+	for _, text := range []string{"若晶振频率", "则时钟周期", "机器周期"} {
+		if !strings.Contains(xml, text) {
+			t.Fatalf("expected bullet text %q to remain in document.xml, got:\n%s", text, xml)
+		}
+	}
+	for _, raw := range []string{`f_{osc}`, `T_{clk}`, `T_{machine}`, `\text{MHz}`, `\times`} {
+		if strings.Contains(xml, raw) {
+			t.Fatalf("expected raw latex %s to be converted inside bullet list, got:\n%s", raw, xml)
+		}
+	}
+}
+
 func readZipPart(t *testing.T, data []byte, part string) string {
 	t.Helper()
 

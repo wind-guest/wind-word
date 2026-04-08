@@ -3936,6 +3936,50 @@ func (d *Document) parseAnchorDrawing(decoder *xml.Decoder, startElement xml.Sta
 				if err := d.skipElement(decoder, t.Name.Local); err != nil {
 					return nil, err
 				}
+			case "simplePos":
+				simplePos := &SimplePosition{}
+				for _, attr := range t.Attr {
+					switch attr.Name.Local {
+					case "x":
+						simplePos.X = attr.Value
+					case "y":
+						simplePos.Y = attr.Value
+					}
+				}
+				anchor.SimplePosition = simplePos
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			case "positionH":
+				positionH, err := d.parseHorizontalPosition(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				anchor.PositionH = positionH
+			case "positionV":
+				positionV, err := d.parseVerticalPosition(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				anchor.PositionV = positionV
+			case "effectExtent":
+				effect := &EffectExtent{}
+				for _, attr := range t.Attr {
+					switch attr.Name.Local {
+					case "l":
+						effect.L = attr.Value
+					case "t":
+						effect.T = attr.Value
+					case "r":
+						effect.R = attr.Value
+					case "b":
+						effect.B = attr.Value
+					}
+				}
+				anchor.EffectExtent = effect
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
 			case "docPr":
 				docPr := &DrawingDocPr{}
 				for _, attr := range t.Attr {
@@ -3985,6 +4029,24 @@ func (d *Document) parseAnchorDrawing(decoder *xml.Decoder, startElement xml.Sta
 				if err := d.skipElement(decoder, t.Name.Local); err != nil {
 					return nil, err
 				}
+			case "wrapTight":
+				wrapTight, err := d.parseWrapTight(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				anchor.WrapTight = wrapTight
+			case "wrapThrough":
+				wrapThrough, err := d.parseWrapThrough(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				anchor.WrapThrough = wrapThrough
+			case "wrapTopAndBottom":
+				wrapTopAndBottom, err := d.parseWrapTopAndBottom(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				anchor.WrapTopAndBottom = wrapTopAndBottom
 			default:
 				if err := d.skipElement(decoder, t.Name.Local); err != nil {
 					return nil, err
@@ -3993,6 +4055,287 @@ func (d *Document) parseAnchorDrawing(decoder *xml.Decoder, startElement xml.Sta
 		case xml.EndElement:
 			if t.Name.Local == "anchor" {
 				return anchor, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseHorizontalPosition(decoder *xml.Decoder, startElement xml.StartElement) (*HorizontalPosition, error) {
+	position := &HorizontalPosition{}
+	for _, attr := range startElement.Attr {
+		if attr.Name.Local == "relativeFrom" {
+			position.RelativeFrom = attr.Value
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_horizontal_position", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "align":
+				value, err := d.readAnchorElementText(decoder, t.Name.Local)
+				if err != nil {
+					return nil, err
+				}
+				position.Align = &PosAlign{Value: value}
+			case "posOffset":
+				value, err := d.readAnchorElementText(decoder, t.Name.Local)
+				if err != nil {
+					return nil, err
+				}
+				position.PosOffset = &PosOffset{Value: value}
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return position, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseVerticalPosition(decoder *xml.Decoder, startElement xml.StartElement) (*VerticalPosition, error) {
+	position := &VerticalPosition{}
+	for _, attr := range startElement.Attr {
+		if attr.Name.Local == "relativeFrom" {
+			position.RelativeFrom = attr.Value
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_vertical_position", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "align":
+				value, err := d.readAnchorElementText(decoder, t.Name.Local)
+				if err != nil {
+					return nil, err
+				}
+				position.Align = &PosAlign{Value: value}
+			case "posOffset":
+				value, err := d.readAnchorElementText(decoder, t.Name.Local)
+				if err != nil {
+					return nil, err
+				}
+				position.PosOffset = &PosOffset{Value: value}
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return position, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseWrapTight(decoder *xml.Decoder, startElement xml.StartElement) (*WrapTight, error) {
+	wrap := &WrapTight{}
+	for _, attr := range startElement.Attr {
+		switch attr.Name.Local {
+		case "wrapText":
+			wrap.WrapText = attr.Value
+		case "distL":
+			wrap.DistL = attr.Value
+		case "distR":
+			wrap.DistR = attr.Value
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_wrap_tight", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "wrapPolygon":
+				polygon, err := d.parseWrapPolygon(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				wrap.WrapPolygon = polygon
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return wrap, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseWrapThrough(decoder *xml.Decoder, startElement xml.StartElement) (*WrapThrough, error) {
+	wrap := &WrapThrough{}
+	for _, attr := range startElement.Attr {
+		switch attr.Name.Local {
+		case "wrapText":
+			wrap.WrapText = attr.Value
+		case "distL":
+			wrap.DistL = attr.Value
+		case "distR":
+			wrap.DistR = attr.Value
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_wrap_through", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "wrapPolygon":
+				polygon, err := d.parseWrapPolygon(decoder, t)
+				if err != nil {
+					return nil, err
+				}
+				wrap.WrapPolygon = polygon
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return wrap, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseWrapTopAndBottom(decoder *xml.Decoder, startElement xml.StartElement) (*WrapTopAndBottom, error) {
+	wrap := &WrapTopAndBottom{}
+	for _, attr := range startElement.Attr {
+		switch attr.Name.Local {
+		case "distT":
+			wrap.DistT = attr.Value
+		case "distB":
+			wrap.DistB = attr.Value
+		}
+	}
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_wrap_top_bottom", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "effectExtent":
+				effect := &EffectExtent{}
+				for _, attr := range t.Attr {
+					switch attr.Name.Local {
+					case "l":
+						effect.L = attr.Value
+					case "t":
+						effect.T = attr.Value
+					case "r":
+						effect.R = attr.Value
+					case "b":
+						effect.B = attr.Value
+					}
+				}
+				wrap.EffectExtent = effect
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return wrap, nil
+			}
+		}
+	}
+}
+
+func (d *Document) parseWrapPolygon(decoder *xml.Decoder, startElement xml.StartElement) (*WrapPolygon, error) {
+	polygon := &WrapPolygon{LineTo: make([]PolygonLineTo, 0)}
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, WrapError("parse_wrap_polygon", err)
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "start":
+				start := &PolygonStart{}
+				for _, attr := range t.Attr {
+					switch attr.Name.Local {
+					case "x":
+						start.X = attr.Value
+					case "y":
+						start.Y = attr.Value
+					}
+				}
+				polygon.Start = start
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			case "lineTo":
+				line := PolygonLineTo{}
+				for _, attr := range t.Attr {
+					switch attr.Name.Local {
+					case "x":
+						line.X = attr.Value
+					case "y":
+						line.Y = attr.Value
+					}
+				}
+				polygon.LineTo = append(polygon.LineTo, line)
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			default:
+				if err := d.skipElement(decoder, t.Name.Local); err != nil {
+					return nil, err
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == startElement.Name.Local {
+				return polygon, nil
+			}
+		}
+	}
+}
+
+func (d *Document) readAnchorElementText(decoder *xml.Decoder, endLocal string) (string, error) {
+	var builder strings.Builder
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return "", WrapError("read_element_text", err)
+		}
+		switch t := token.(type) {
+		case xml.CharData:
+			builder.Write([]byte(t))
+		case xml.EndElement:
+			if t.Name.Local == endLocal {
+				return builder.String(), nil
 			}
 		}
 	}

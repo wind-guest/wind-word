@@ -567,7 +567,7 @@ func createMathRun(text string) *MathRun {
 
 func convertLaTeXCommandWithArg(cmd, arg string) ([]interface{}, bool) {
 	switch cmd {
-	case "mathbf", "mathrm", "mathit", "mathsf", "boldsymbol", "operatorname":
+	case "mathbf", "mathrm", "mathit", "mathsf", "boldsymbol", "operatorname", "text":
 		return parseLatex(arg), true
 	case "hat":
 		return accentCommandContent(arg, "\u0302"), true

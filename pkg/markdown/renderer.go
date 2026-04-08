@@ -168,69 +168,75 @@ func (r *WordRenderer) renderParagraph(node *ast.Paragraph) (ast.WalkStatus, err
 // renderInlineContent 渲染内联内容（文本、强调、链接等）
 func (r *WordRenderer) renderInlineContent(node ast.Node, para *document.Paragraph) {
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		switch n := child.(type) {
-		case *ast.Text:
-			text := string(n.Segment.Value(r.source))
+		r.renderInlineNodeToParagraph(child, para)
+	}
+}
+
+func (r *WordRenderer) renderInlineNodeToParagraph(node ast.Node, para *document.Paragraph) {
+	switch n := node.(type) {
+	case *ast.Text:
+		text := string(n.Segment.Value(r.source))
+		para.AddFormattedText(text, nil)
+
+		// 处理软换行（单个\n）
+		// goldmark将单个\n解析为多个Text节点，第一个节点的SoftLineBreak为true
+		// 在Markdown中，软换行通常应该被渲染为空格
+		if n.SoftLineBreak() {
+			para.AddFormattedText(" ", nil)
+		}
+
+	case *ast.Emphasis:
+		text := r.extractTextContent(n)
+		// goldmark中，level=1是斜体，level=2是粗体
+		if n.Level == 2 {
+			// 使用粗体格式
+			format := &document.TextFormat{Bold: true}
+			para.AddFormattedText(text, format)
+		} else {
+			// 使用斜体格式
+			format := &document.TextFormat{Italic: true}
+			para.AddFormattedText(text, format)
+		}
+
+	case *ast.CodeSpan:
+		text := r.extractTextContent(n)
+		// 使用CodeChar样式的格式
+		format := &document.TextFormat{
+			FontFamily: "Consolas",
+			FontColor:  "D73A49", // GitHub风格的红色
+		}
+		para.AddFormattedText(text, format)
+
+	case *ast.Link:
+		text := r.extractTextContent(n)
+		// 简单处理链接，后续可以扩展为超链接
+		format := &document.TextFormat{
+			FontColor: "0000FF", // 蓝色
+		}
+		para.AddFormattedText(text, format)
+
+	case *ast.Image:
+		r.renderImageInline(n, para)
+
+	case *extast.Strikethrough:
+		// 处理删除线
+		text := r.extractTextContent(n)
+		format := &document.TextFormat{
+			Strike: true,
+		}
+		para.AddFormattedText(text, format)
+
+	default:
+		// 检查是否为行内数学公式
+		if r.opts.EnableMath && node.Kind() == mathjax.KindInlineMath {
+			r.renderInlineMathToParagraph(node, para)
+			return
+		}
+
+		// 对于其他类型，尝试提取文本内容
+		text := r.extractTextContent(n)
+		if text != "" {
 			para.AddFormattedText(text, nil)
-
-			// 处理软换行（单个\n）
-			// goldmark将单个\n解析为多个Text节点，第一个节点的SoftLineBreak为true
-			// 在Markdown中，软换行通常应该被渲染为空格
-			if n.SoftLineBreak() {
-				para.AddFormattedText(" ", nil)
-			}
-
-		case *ast.Emphasis:
-			text := r.extractTextContent(n)
-			// goldmark中，level=1是斜体，level=2是粗体
-			if n.Level == 2 {
-				// 使用粗体格式
-				format := &document.TextFormat{Bold: true}
-				para.AddFormattedText(text, format)
-			} else {
-				// 使用斜体格式
-				format := &document.TextFormat{Italic: true}
-				para.AddFormattedText(text, format)
-			}
-
-		case *ast.CodeSpan:
-			text := r.extractTextContent(n)
-			// 使用CodeChar样式的格式
-			format := &document.TextFormat{
-				FontFamily: "Consolas",
-				FontColor:  "D73A49", // GitHub风格的红色
-			}
-			para.AddFormattedText(text, format)
-
-		case *ast.Link:
-			text := r.extractTextContent(n)
-			// 简单处理链接，后续可以扩展为超链接
-			format := &document.TextFormat{
-				FontColor: "0000FF", // 蓝色
-			}
-			para.AddFormattedText(text, format)
-
-		case *ast.Image:
-			r.renderImageInline(n, para)
-		case *extast.Strikethrough:
-			// 处理删除线
-			text := r.extractTextContent(n)
-			format := &document.TextFormat{
-				Strike: true,
-			}
-			para.AddFormattedText(text, format)
-
-		default:
-			// 检查是否为行内数学公式
-			if r.opts.EnableMath && child.Kind() == mathjax.KindInlineMath {
-				r.renderInlineMathToParagraph(child, para)
-				continue
-			}
-			// 对于其他类型，尝试提取文本内容
-			text := r.extractTextContent(n)
-			if text != "" {
-				para.AddFormattedText(text, nil)
-			}
 		}
 	}
 }
@@ -268,14 +274,48 @@ func (r *WordRenderer) renderListItem(node *ast.ListItem) (ast.WalkStatus, error
 	}
 
 	// 普通列表项处理
-	text := r.extractTextContent(node)
-
-	// 简单的列表项处理，后续可以扩展为真正的列表格式
-	// 这里暂时使用缩进和符号来模拟列表
 	indent := strings.Repeat("  ", r.listLevel-1)
-	bulletText := "• " + text
+	bulletPrefix := indent + "• "
+	continuationPrefix := indent + "  "
+	renderedParagraph := false
 
-	r.doc.AddParagraph(indent + bulletText)
+	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+		switch n := child.(type) {
+		case *ast.Paragraph:
+			prefix := bulletPrefix
+			if renderedParagraph {
+				prefix = continuationPrefix
+			}
+			para := r.doc.AddParagraph(prefix)
+			r.renderInlineContent(n, para)
+			renderedParagraph = true
+
+		case *ast.TextBlock:
+			prefix := bulletPrefix
+			if renderedParagraph {
+				prefix = continuationPrefix
+			}
+			para := r.doc.AddParagraph(prefix)
+			r.renderInlineContent(n, para)
+			renderedParagraph = true
+
+		case *ast.List:
+			_, _ = r.renderList(n)
+
+		default:
+			if renderedParagraph {
+				continue
+			}
+
+			para := r.doc.AddParagraph(bulletPrefix)
+			r.renderInlineNodeToParagraph(child, para)
+			renderedParagraph = true
+		}
+	}
+
+	if !renderedParagraph {
+		r.doc.AddParagraph(bulletPrefix)
+	}
 
 	return ast.WalkSkipChildren, nil
 }
@@ -614,48 +654,16 @@ func (r *WordRenderer) renderTaskItemContent(parent ast.Node, para *document.Par
 			continue
 		}
 
-		switch n := child.(type) {
-		case *ast.Text:
-			text := string(n.Segment.Value(r.source))
-			para.AddFormattedText(text, nil)
-
-			// 处理软换行（单个\n）
-			if n.SoftLineBreak() {
-				para.AddFormattedText(" ", nil)
-			}
-		case *ast.Emphasis:
-			text := r.extractTextContent(n)
-			if n.Level == 2 {
-				format := &document.TextFormat{Bold: true}
-				para.AddFormattedText(text, format)
-			} else {
-				format := &document.TextFormat{Italic: true}
-				para.AddFormattedText(text, format)
-			}
-		case *ast.CodeSpan:
-			text := r.extractTextContent(n)
-			format := &document.TextFormat{
-				FontFamily: "Consolas",
-			}
-			para.AddFormattedText(text, format)
-		case *ast.Link:
-			text := r.extractTextContent(n)
-			format := &document.TextFormat{
-				FontColor: "0000FF", // 蓝色
-			}
-			para.AddFormattedText(text, format)
-		default:
-			// 检查是否为行内数学公式
-			if r.opts.EnableMath && child.Kind() == mathjax.KindInlineMath {
-				r.renderInlineMathToParagraph(child, para)
-				continue
-			}
-			// 对于其他类型，尝试提取文本内容
-			text := r.extractTextContent(n)
-			if text != "" {
-				para.AddFormattedText(text, nil)
-			}
+		if paragraph, ok := child.(*ast.Paragraph); ok {
+			r.renderInlineContent(paragraph, para)
+			continue
 		}
+		if textBlock, ok := child.(*ast.TextBlock); ok {
+			r.renderInlineContent(textBlock, para)
+			continue
+		}
+
+		r.renderInlineNodeToParagraph(child, para)
 	}
 }
 
